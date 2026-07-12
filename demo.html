@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Student Management Demo</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 700px; margin: 40px auto; }
+  input { display: block; margin: 6px 0; padding: 6px; width: 100%; box-sizing: border-box; }
+  button { padding: 6px 12px; margin: 4px 4px 4px 0; cursor: pointer; }
+  table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+  th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+  #authSection, #crudSection { margin-bottom: 20px; }
+  #crudSection { display: none; }
+  #status { color: green; font-size: 14px; }
+  h3 { margin-bottom: 4px; margin-top: 24px; }
+  hr { margin: 24px 0; }
+</style>
+</head>
+<body>
+
+<h2>Student Management Demo</h2>
+
+<div id="authSection">
+  <h3>Login</h3>
+  <input id="username" placeholder="username">
+  <input id="password" placeholder="password" type="password">
+  <button onclick="login()">Login</button>
+  <button onclick="register()">Register</button>
+  <p id="status"></p>
+</div>
+
+<div id="crudSection">
+  <h3>Add Student</h3>
+  <input id="name" placeholder="Name">
+  <input id="roll_no" placeholder="Roll No">
+  <input id="department" placeholder="Department">
+  <input id="cgpa" placeholder="CGPA">
+  <button onclick="createStudent()">Add Student</button>
+
+  <hr>
+
+  <h3>Get Student by ID</h3>
+  <input id="searchId" placeholder="Student ID">
+  <button onclick="getStudentById()">Search</button>
+  <p id="searchResult"></p>
+
+  <hr>
+
+  <h3>Update Student</h3>
+  <input id="updateId" placeholder="Student ID to update">
+  <input id="updateName" placeholder="New Name">
+  <input id="updateRollNo" placeholder="New Roll No">
+  <input id="updateDept" placeholder="New Department">
+  <input id="updateCgpa" placeholder="New CGPA">
+  <button onclick="updateStudent()">Update</button>
+
+  <hr>
+
+  <h3>All Students</h3>
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Name</th><th>Roll No</th><th>Department</th><th>CGPA</th><th>Actions</th></tr>
+    </thead>
+    <tbody id="studentTable"></tbody>
+  </table>
+</div>
+
+<script>
+const API = 'http://localhost:5000';
+let token = '';
+
+async function register() {
+  const username = document.getElementById('username').value;
+  const password = document.getElementById('password').value;
+  const res = await fetch(`${API}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password })
+  });
+  const data = await res.json();
+  document.getElementById('status').innerText = data.message || JSON.stringify(data);
+}
+
+async function login() {
+  const username = document.getElementById('username').value;
+  const password = document.getElementById('password').value;
+  const res = await fetch(`${API}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password })
+  });
+  const data = await res.json();
+  if (data.token) {
+    token = data.token;
+    document.getElementById('status').innerText = 'Logged in!';
+    document.getElementById('crudSection').style.display = 'block';
+    loadStudents();
+  } else {
+    document.getElementById('status').innerText = data.message || 'Login failed';
+  }
+}
+
+async function loadStudents() {
+  const res = await fetch(`${API}/api/students`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  const data = await res.json();
+  const rows = data.students.map(s => `
+    <tr>
+      <td>${s.id}</td>
+      <td>${s.name}</td>
+      <td>${s.roll_no}</td>
+      <td>${s.department}</td>
+      <td>${s.cgpa}</td>
+      <td>
+        <button onclick="deleteStudent(${s.id})">Delete</button>
+      </td>
+    </tr>
+  `).join('');
+  document.getElementById('studentTable').innerHTML = rows;
+}
+
+async function createStudent() {
+  const name = document.getElementById('name').value;
+  const roll_no = document.getElementById('roll_no').value;
+  const department = document.getElementById('department').value;
+  const cgpa = document.getElementById('cgpa').value;
+
+  await fetch(`${API}/api/students`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ name, roll_no, department, cgpa })
+  });
+  loadStudents();
+}
+
+async function getStudentById() {
+  const id = document.getElementById('searchId').value;
+  const res = await fetch(`${API}/api/students/${id}`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  const data = await res.json();
+  if (res.ok) {
+    const s = data.student;
+    document.getElementById('searchResult').innerText =
+      `${s.name} | ${s.roll_no} | ${s.department} | CGPA: ${s.cgpa}`;
+  } else {
+    document.getElementById('searchResult').innerText = data.message;
+  }
+}
+
+async function updateStudent() {
+  const id = document.getElementById('updateId').value;
+  const name = document.getElementById('updateName').value;
+  const roll_no = document.getElementById('updateRollNo').value;
+  const department = document.getElementById('updateDept').value;
+  const cgpa = document.getElementById('updateCgpa').value;
+
+  const res = await fetch(`${API}/api/students/${id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ name, roll_no, department, cgpa })
+  });
+
+  if (res.ok) {
+    loadStudents();
+  } else {
+    const data = await res.json();
+    alert(data.message);
+  }
+}
+
+async function deleteStudent(id) {
+  await fetch(`${API}/api/students/${id}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  loadStudents();
+}
+</script>
+
+</body>
+</html>
